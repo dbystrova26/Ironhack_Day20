@@ -40,7 +40,7 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
 | Layer | Technology | Purpose |
 |---|---|---|
 | Core LLM | Anthropic Claude (claude-sonnet) | Document reasoning, comparison, explanation generation |
-| Vector DB | ChromaDB (local) | Stores and retrieves chunked royalty statements and FAQ |
+| Vector DB | Pinecone (serverless, free tier) | Stores and retrieves chunked royalty statements and FAQ |
 | Embeddings | Anthropic / sentence-transformers | Converts document chunks to searchable vectors |
 | Agent Framework | LangGraph | Multi-step reasoning graph: classify → retrieve → reason → route |
 | Orchestration | n8n | Trigger agent via webhook, log to Google Sheets, Slack escalation |
@@ -53,7 +53,7 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
 
 **LangGraph over plain LangChain:** The agent needs a guaranteed decision path — classify the question type, retrieve relevant documents, reason, then route to answer or escalate. A plain LangChain ReAct agent loops freely and cannot guarantee this structure. LangGraph's explicit node-and-edge architecture gives us control.
 
-**ChromaDB over Pinecone:** ChromaDB runs locally with zero cost and zero setup, appropriate for a prototype. Pinecone would be chosen for production at Believe's scale.
+**Pinecone over ChromaDB:** Pinecone's serverless free tier requires no local infrastructure and supports metadata filtering out of the box — critical for filtering chunks by artist, month, and document type. It also scales directly to production if Believe adopts the system, with no migration needed.
 
 **n8n over custom scheduler:** n8n handles the business integration layer (Google Sheets logging, Slack alerts) without custom code. It also provides a webhook endpoint that acts as the agent's entry point — meaning the agent can be triggered from any Believe tool in the future.
 
@@ -62,7 +62,7 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
 | Alternative | Why not chosen |
 |---|---|
 | GPT-4 | No access; Claude equivalent in capability |
-| Pinecone | Requires paid account; overkill for prototype |
+| ChromaDB | Local-only; requires migration to move to production; Pinecone free tier sufficient |
 | Plain LangChain agent | No structured routing; can't guarantee escalation logic |
 | Pure n8n (no LangGraph) | n8n AI nodes lack the document reasoning depth needed |
 
@@ -77,7 +77,7 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
   - Believe FAQ document (compiled from public website + manually written royalty Q&A)
 - **LangGraph agent with 4 nodes:**
   - Node 1: Classify question type (comparison / platform-specific / FAQ / general)
-  - Node 2: Retrieve relevant document chunks from ChromaDB
+  - Node 2: Retrieve relevant document chunks from Pinecone
   - Node 3: Reason and generate answer using Claude
   - Node 4: Confidence check → route to answer or escalation
 - **n8n orchestration:**
@@ -120,7 +120,7 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
 | Claude hallucinates numbers not present in documents | Medium | High | Prompt instructs Claude to only cite figures explicitly found in retrieved chunks; include source chunk in answer |
-| ChromaDB retrieves wrong document chunks (wrong month) | Medium | High | Include month and artist name as metadata filters on every retrieval call |
+| Pinecone retrieves wrong document chunks (wrong month) | Medium | High | Include month and artist name as metadata filters on every retrieval call; verify with test queries after ingestion |
 | n8n webhook times out before LangGraph returns answer | Low | Medium | Set n8n HTTP node timeout to 60s; LangGraph targets < 15s response |
 | LangGraph node gets stuck in loop | Low | Medium | Set max_iterations = 5 on the graph; add fallback edge to escalation node |
 | API rate limits on Claude during demo | Low | Low | Demo uses 5 pre-written test questions; well within free tier limits |
@@ -146,15 +146,15 @@ A static chatbot with pre-written answers cannot compare two months of data, ide
 ## 5. Implementation Plan
 
 ### Phase 1: Data Preparation (Days 1–2)
-**Goal:** All documents ingested and retrievable from ChromaDB
+**Goal:** All documents ingested and retrievable from Pinecone
 
 Tasks:
 - Create `nova_bloom_february_2024.pdf` (simulated royalty statement)
 - Create `nova_bloom_march_2024.pdf` (simulated royalty statement — lower Spotify payout)
 - Compile `believe_faq.pdf` (public website content + 6 manual Q&A pairs)
-- Set up ChromaDB locally
-- Write ingestion script: load PDFs → chunk → embed → store with metadata (artist, month, doc_type)
-- Verify retrieval: run 3 test queries, confirm correct chunks returned
+- Set up Pinecone account (free serverless tier); create index `believe-royalties`
+- Write ingestion script: load PDFs → chunk → embed → upsert to Pinecone with metadata (artist, month, doc_type)
+- Verify retrieval: run 3 test queries with metadata filters, confirm correct chunks returned
 
 Milestone: `retrieval_test.py` returns correct chunks for "March payout" and "Spotify streams"
 
@@ -164,7 +164,7 @@ Milestone: `retrieval_test.py` returns correct chunks for "March payout" and "Sp
 Tasks:
 - Define `RoyaltyAgentState` TypedDict
 - Build Node 1: question classifier (Claude prompt, returns question_type)
-- Build Node 2: RAG retriever (ChromaDB query filtered by metadata)
+- Build Node 2: RAG retriever (Pinecone query filtered by metadata)
 - Build Node 3: reasoning node (Claude compares docs, generates explanation)
 - Build Node 4: confidence router (conditional edge → answer or escalate)
 - Connect nodes into LangGraph graph
@@ -199,13 +199,14 @@ Tasks:
 
 | Phase | Days | Deliverable |
 |---|---|---|
-| 1 — Data prep | 1–2 | 3 PDFs ingested in ChromaDB |
+| 1 — Data prep | 1–2 | 3 PDFs ingested in Pinecone |
 | 2 — LangGraph agent | 3–4 | Working 4-node agent |
 | 3 — n8n integration | 5 | Full webhook → Sheets → Slack flow |
 | 4 — Documentation | 6 | GitHub repo submitted |
 
 ### Dependencies
 - Anthropic API key (required from Day 2)
+- Pinecone API key (free serverless tier at pinecone.io — required from Day 1)
 - n8n installed locally or via n8n.io cloud (free tier sufficient)
 - Google Sheets API credentials (via n8n OAuth)
 - Slack workspace with a channel for alerts
@@ -215,7 +216,7 @@ Tasks:
 | Resource | Tool | Cost |
 |---|---|---|
 | LLM | Anthropic Claude API | Pay-per-use (minimal for prototype) |
-| Vector DB | ChromaDB | Free (local) |
+| Vector DB | Pinecone (serverless free tier) | Free |
 | Orchestration | n8n (self-hosted or cloud free tier) | Free |
 | Logging | Google Sheets | Free |
 | Alerts | Slack | Free |

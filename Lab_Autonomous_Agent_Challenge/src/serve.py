@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from typing import Optional
 import traceback
 
-from agent import ask  # LangGraph agent
+from src.agent import ask  # LangGraph agent
 
 # ── App ───────────────────────────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@ An autonomous agent that answers artist royalty questions by reasoning over simu
 | `project_plan.md` | Main deliverable — full 6-section project plan |
 | `lab_summary.md` | Reflection paragraph (hardest part, lessons, open questions) |
 | `data/` | Simulated royalty PDFs and FAQ document |
-| `src/ingest.py` | Ingests PDFs into ChromaDB vector database |
+| `src/ingest.py` | Ingests PDFs into Pinecone vector database |
 | `src/agent.py` | LangGraph agent — 4 nodes: classify, retrieve, reason, route |
 | `src/serve.py` | FastAPI server exposing the agent to n8n via HTTP |
 | `screenshots/` | n8n workflow, Google Sheets log, Slack alert |
@@ -25,6 +25,7 @@ An autonomous agent that answers artist royalty questions by reasoning over simu
 ### Prerequisites
 - Python 3.10+
 - Anthropic API key
+- Pinecone API key (free tier at pinecone.io)
 - n8n (local install or n8n.io free cloud account)
 - Google Sheets API credentials (set up via n8n OAuth)
 - Slack workspace with an alerts channel
@@ -32,22 +33,23 @@ An autonomous agent that answers artist royalty questions by reasoning over simu
 ### 1. Install dependencies
 
 ```bash
-pip install langchain langgraph langchain-anthropic chromadb fastapi uvicorn pypdf
+pip install -r requirements.txt
 ```
 
-### 2. Set environment variable
+### 2. Set environment variables
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
+export PINECONE_API_KEY=your_key_here
 ```
 
-### 3. Ingest documents into ChromaDB
+### 3. Ingest documents into Pinecone
 
 ```bash
 python src/ingest.py
 ```
 
-This loads the 3 PDFs from `/data`, chunks them, embeds them, and stores them in a local ChromaDB collection called `believe_royalties`.
+This loads the 3 PDFs from `/data`, chunks them, embeds them, and upserts them into a Pinecone index called `believe-royalties` with metadata filters for artist, period, and document type.
 
 ### 4. Start the agent server
 
@@ -97,7 +99,7 @@ Artist question (n8n webhook)
   LangGraph Agent
   ┌─────────────────────┐
   │ Node 1: Classify    │
-  │ Node 2: Retrieve    │ ← ChromaDB (3 PDFs)
+  │ Node 2: Retrieve    │ ← Pinecone (3 PDFs)
   │ Node 3: Reason      │ ← Claude API
   │ Node 4: Route       │
   └─────────────────────┘
