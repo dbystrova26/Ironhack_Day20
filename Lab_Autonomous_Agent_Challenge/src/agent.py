@@ -16,8 +16,11 @@ Requirements:
 import os
 from typing import TypedDict, Literal
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from anthropic import Anthropic
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langgraph.graph import StateGraph, END
 from pinecone import Pinecone
 
@@ -26,12 +29,12 @@ from pinecone import Pinecone
 PINECONE_API_KEY = os.environ["PINECONE_API_KEY"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 INDEX_NAME = "believe-royalties"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-5"
 
 # Initialise clients once at module load (reused across requests)
 _pc = Pinecone(api_key=PINECONE_API_KEY)
 _index = _pc.Index(INDEX_NAME)
-_embedder = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+_embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 _claude = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # ── State schema ──────────────────────────────────────────────────────────────

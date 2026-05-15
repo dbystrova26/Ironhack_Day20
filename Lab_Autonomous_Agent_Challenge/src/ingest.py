@@ -15,10 +15,13 @@ import os
 from pathlib import Path
 from time import sleep
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from pinecone import Pinecone, ServerlessSpec
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -118,7 +121,7 @@ def ingest():
     index = get_or_create_index(pc)
 
     print("\nLoading embedding model (all-MiniLM-L6-v2) ...")
-    embedder = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedder = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
     vectors_to_upsert = []
 
